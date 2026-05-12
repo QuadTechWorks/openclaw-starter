@@ -1,8 +1,11 @@
 # openclaw-starter
 
-A ready-to-run template for deploying a self-hosted AI agent on your local machine using Docker.
+A ready-to-run template for deploying a self-hosted AI agent on a **Linux server** (or any Docker host) using Docker Compose.
 
-Your agent runs as a persistent gateway — accessible via a **web UI**, **terminal TUI**, and optionally **Microsoft Teams**. The workspace (personality, rules, skills, knowledge) lives as plain markdown files you edit directly. Changes reload live without restarting containers.
+Your agent runs as a persistent gateway — accessible via a **web UI**, **terminal TUI**, and optionally **Microsoft Teams**, **WhatsApp**, or **Telegram**. The workspace (personality, rules, skills, knowledge) lives as plain markdown files you edit directly. Changes reload live without restarting containers.
+
+> **Primary deployment target:** Ubuntu 22.04 / 24.04 LTS (amd64 or arm64) with Docker Engine 24+ and the Compose plugin.
+> **Local dev:** also tested on macOS via Colima — see the Prerequisites section.
 
 ---
 
@@ -121,34 +124,90 @@ openclaw-ngrok          (Teams only) ngrok tunnel container.
 
 ## Prerequisites
 
-- **Docker Desktop** (Mac / Windows) or **Docker Engine + Compose plugin** (Linux)
-- **openssl** (used by `setup.sh` to generate the gateway token — preinstalled on macOS and most Linux distros)
-- **Python 3** (used by `setup.sh` to patch `workspace/IDENTITY.md` — preinstalled on macOS)
+> **Primary target: Linux server (Ubuntu 22.04 / 24.04 LTS, amd64 / arm64).**
+> Production deployments should run on Linux. macOS and Windows are supported for local development only.
+
+**Required on any host:**
+- **Docker Engine 24+** with the **Compose plugin** (`docker compose version` must work)
+- **openssl** (used by `setup.sh` to generate the gateway token)
+- **Python 3** (used by `setup.sh` to patch `workspace/IDENTITY.md`)
 - An **Anthropic API key** — [console.anthropic.com](https://console.anthropic.com)
 - Optional: OpenAI key, Tavily key, Teams bot credentials, ngrok account
 
-> **macOS — install Docker Desktop:**
-> 1. Download from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) (pick the Apple Silicon or Intel build for your Mac).
-> 2. Open the `.dmg`, drag **Docker.app** into `/Applications`, then launch it once so the daemon starts.
-> 3. Verify in a terminal:
->    ```bash
->    docker --version           # Docker version 26.x or newer
->    docker compose version     # Docker Compose v2.x
->    ```
-> If you prefer a lighter alternative, [OrbStack](https://orbstack.dev/) is a drop-in replacement that works with this template.
+### Linux — install Docker Engine (recommended)
 
-> **Windows — install Docker Desktop:**
-> Download from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) and follow the WSL 2 backend prompts during install. Run `setup.sh` inside WSL (Ubuntu).
+Ubuntu 22.04 / 24.04 / Debian 12:
 
-> **Linux — install Docker Engine:**
+```bash
+# Remove old packages (safe if none installed)
+sudo apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+
+# Add Docker's official apt repo
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg lsb-release
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker Engine + Compose plugin
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Start the daemon, enable at boot, allow your user to run docker without sudo
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Also install openssl + python3 if missing
+sudo apt-get install -y openssl python3
+```
+
+Verify:
+```bash
+docker --version           # Docker version 27.x or newer
+docker compose version     # Docker Compose v2.x
+docker info                # no error
+```
+
+> **RHEL / Fedora / CentOS users:** swap `apt-get` for `dnf` and use the matching repo:
 > ```bash
-> sudo apt-get update && sudo apt-get install -y ca-certificates curl gnupg
-> sudo install -m 0755 -d /etc/apt/keyrings
-> curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-> echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
-> sudo apt-get update && sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-> sudo systemctl enable --now docker && sudo usermod -aG docker $USER && newgrp docker
+> sudo dnf install -y dnf-plugins-core
+> sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+> sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+> sudo systemctl enable --now docker
+> sudo usermod -aG docker $USER && newgrp docker
 > ```
+
+---
+
+### Local Development on Mac / Windows
+
+Linux is the primary target — these are dev-only paths for editing skills and testing locally before pushing to a Linux server.
+
+<details>
+<summary><b>macOS — Colima (recommended for dev)</b></summary>
+
+```bash
+brew install colima docker docker-compose
+mkdir -p ~/.docker
+echo '{"cliPluginsExtraDirs":["/opt/homebrew/lib/docker/cli-plugins"]}' > ~/.docker/config.json
+colima start --cpu 4 --memory 8 --disk 60
+```
+
+Verified working on Apple Silicon (M1/M2/M3/M4) with this template — see commit history for the live test run.
+
+Alternatives: [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [OrbStack](https://orbstack.dev/) (both drop-in compatible).
+</details>
+
+<details>
+<summary><b>Windows — Docker Desktop + WSL 2</b></summary>
+
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) with the WSL 2 backend. Clone the repo inside WSL (Ubuntu) and run `setup.sh` there — don't run it from PowerShell.
+</details>
 
 ---
 
