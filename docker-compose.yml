@@ -1,0 +1,165 @@
+services:
+
+  # ── Workspace File Watcher ──────────────────────────────────────────────────
+  # Watches AGENTS.md, SOUL.md, MEMORY.md, TOOLS.md, IDENTITY.md, HEARTBEAT.md
+  # and orchestrates live reloads across all active agent sessions.
+  openclaw-watcher:
+    build:
+      context: ./watcher
+      dockerfile: Dockerfile
+    image: openclaw-watcher:local
+    container_name: openclaw-watcher
+    networks:
+      - openclaw-network
+    environment:
+      PORT: 18791
+      WORKSPACE_DIR: /workspace
+      DEBOUNCE_MS: 500
+      STALE_SESSION_MS: 30000
+      RATE_LIMIT_MS: 10000
+      REQUEST_TIMEOUT: 60000
+      RELOAD_TIMEOUT: 30000
+    volumes:
+      - ./workspace:/workspace:ro
+    ports:
+      - "${OPENCLAW_WATCHER_PORT:-18791}:18791"
+    restart: always
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:18791/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Workspace Watcher Client ───────────────────────────────────────────────
+  # Python daemon that maintains an SSE connection to openclaw-watcher and
+  # performs workspace file reloads on behalf of agent sessions.
+  openclaw-watcher-client:
+    build:
+      context: ./watcher-client
+      dockerfile: Dockerfile
+    image: openclaw-watcher-client:local
+    container_name: openclaw-watcher-client
+    network_mode: "service:openclaw-gateway"
+    environment:
+      WATCHER_URL: http://openclaw-watcher:18791
+      WORKSPACE_DIR: /home/node/.openclaw/workspace
+      HEARTBEAT_EVERY: 5
+      SSE_RETRY_DELAY: 5
+      OPENCLAW_SESSION_ID: main-session
+      OPENCLAW_USER_ID: system
+      OPENCLAW_CHANNEL: system
+    volumes:
+      - ./workspace:/home/node/.openclaw/workspace:ro
+    restart: always
+    depends_on:
+      openclaw-watcher:
+        condition: service_healthy
+
+  # ── OpenClaw Gateway ───────────────────────────────────────────────────────
+  # Main AI gateway — serves the web UI on port 18789.
+  # openclaw.json and .env must exist in the repo root before starting.
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw:latest
+    pull_policy: always
+    container_name: openclaw-gateway
+    user: "${OPENCLAW_UID:-1000}:${OPENCLAW_GID:-1000}"
+    networks:
+      - openclaw-network
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${GATEWAY_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      NODE_OPTIONS: --max-old-space-size=4096
+      WATCHER_URL: http://openclaw-watcher:18791
+      HEARTBEAT_EVERY: 5
+      SSE_RETRY_DELAY: 5
+      WORKSPACE_DIR: /home/node/.openclaw/workspace
+      OPENCLAW_SESSION_ID: gateway-main
+      OPENCLAW_USER_ID: gateway
+      OPENCLAW_CHANNEL: system
+    ports:
+      - "${OPENCLAW_GATEWAY_HOST_PORT:-18789}:18789"
+      - "${OPENCLAW_TEAMS_PORT:-3978}:3978"
+    volumes:
+      - .:/home/node/.openclaw
+      - ./workspace:/home/node/.openclaw/workspace
+      - ./requirements.txt:/requirements.txt:ro
+      - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./workspace/.python-packages:/home/node/.local
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    init: true
+    restart: unless-stopped
+    depends_on:
+      openclaw-watcher:
+        condition: service_healthy
+    command:
+      [
+        "node",
+        "--max-old-space-size=4096",
+        "dist/index.js",
+        "gateway",
+        "--bind",
+        "lan",
+        "--port",
+        "18789",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ── OpenClaw CLI ────────────────────────────────────────────────────────────
+  # Optional TUI terminal client. Attach with:
+  #   docker attach openclaw-cli
+  openclaw-cli:
+    image: ghcr.io/openclaw/openclaw:latest
+    pull_policy: always
+    container_name: openclaw-cli
+    user: "${OPENCLAW_UID:-1000}:${OPENCLAW_GID:-1000}"
+    network_mode: "service:openclaw-gateway"
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${GATEWAY_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - .:/home/node/.openclaw
+      - ./workspace:/home/node/.openclaw/workspace
+    stdin_open: true
+    tty: true
+    init: true
+    restart: unless-stopped
+    entrypoint: ["node", "dist/index.js"]
+    command:
+      [
+        "tui",
+        "--url",
+        "ws://127.0.0.1:18789",
+        "--token",
+        "${GATEWAY_TOKEN:-}",
+      ]
+    depends_on:
+      - openclaw-gateway
+
+networks:
+  openclaw-network:
+    name: openclaw-network
+    driver: bridge

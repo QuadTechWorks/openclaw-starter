@@ -1,0 +1,17 @@
+{
+  "name": "openclaw-workspace-watcher",
+  "version": "1.0.0",
+  "description": "State-aware workspace file watcher and reload orchestrator for OpenClaw sessions",
+  "main": "watcher.js",
+  "scripts": {
+    "start": "node watcher.js",
+    "dev": "node --watch watcher.js"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

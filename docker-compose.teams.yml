@@ -1,0 +1,34 @@
+# =============================================================================
+# docker-compose.teams.yml — Teams + ngrok overlay
+#
+# Extends docker-compose.yml to add a public ngrok tunnel for Microsoft Teams.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.teams.yml up -d
+#
+# Prerequisites:
+#   Set in .env:  NGROK_AUTHTOKEN, NGROK_URL, TEAMS_APP_ID, TEAMS_APP_PASSWORD, TEAMS_TENANT_ID
+# =============================================================================
+
+services:
+  openclaw-gateway:
+    environment:
+      MSTEAMS_APP_ID: ${TEAMS_APP_ID:-}
+      MSTEAMS_APP_PASSWORD: ${TEAMS_APP_PASSWORD:-}
+      MSTEAMS_TENANT_ID: ${TEAMS_TENANT_ID:-}
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: openclaw-ngrok
+    networks:
+      - openclaw-network
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    command:
+      - http
+      - --url=${NGROK_URL:-}
+      - --pooling-enabled
+      - openclaw-gateway:3978
+    restart: unless-stopped
+    depends_on:
+      - openclaw-gateway

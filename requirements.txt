@@ -1,0 +1,49 @@
+# =============================================================================
+# requirements.txt — Python packages installed into the gateway container
+#
+# These are installed on first startup via entrypoint.sh.
+# Add or remove packages to match your agent's needs.
+# =============================================================================
+
+# ── AI / LLM ──────────────────────────────────────────────────────────────────
+anthropic
+openai
+fastembed
+sentence-transformers
+tavily-python
+
+# ── Vector DB ─────────────────────────────────────────────────────────────────
+qdrant-client
+
+# ── Data Science ──────────────────────────────────────────────────────────────
+pandas
+numpy
+scikit-learn
+scipy
+statsmodels
+xgboost
+matplotlib
+seaborn
+plotly
+
+# ── Web / API ─────────────────────────────────────────────────────────────────
+fastapi
+uvicorn
+requests
+pydantic
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy
+
+# ── Documents / Files ─────────────────────────────────────────────────────────
+python-docx
+python-pptx
+openpyxl
+PyPDF2
+pdfplumber
+PyYAML
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv
+packaging
+pytest

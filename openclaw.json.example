@@ -1,0 +1,98 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.4.21",
+    "agentName": "YOUR_AGENT_NAME"
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "anthropic/claude-sonnet-4-5"
+      },
+      "models": {
+        "anthropic/claude-sonnet-4-5": {
+          "params": { "cacheRetention": "short" }
+        },
+        "openai/text-embedding-3-small": {}
+      },
+      "workspace": "/home/node/.openclaw/workspace",
+      "bootstrapMaxChars": 100000,
+      "bootstrapTotalMaxChars": 400000,
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "45m",
+        "keepLastAssistants": 6,
+        "softTrimRatio": 0.35,
+        "hardClearRatio": 0.6,
+        "minPrunableToolChars": 800
+      },
+      "compaction": {
+        "mode": "safeguard",
+        "reserveTokens": 18000,
+        "keepRecentTokens": 22000,
+        "reserveTokensFloor": 8000,
+        "maxHistoryShare": 0.55,
+        "recentTurnsPreserve": 5,
+        "postIndexSync": "async",
+        "memoryFlush": {
+          "enabled": true,
+          "softThresholdTokens": 12000,
+          "forceFlushTranscriptBytes": "3mb"
+        }
+      },
+      "blockStreamingDefault": "on",
+      "blockStreamingBreak": "text_end",
+      "heartbeat": { "every": "20m" },
+      "sandbox": { "browser": { "enabled": true } }
+    }
+  },
+  "tools": {
+    "profile": "full",
+    "exec": {
+      "security": "full",
+      "pathPrepend": ["/home/node/.openclaw/workspace/bin"]
+    }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "channels": {
+    "msteams": {
+      "enabled": false,
+      "appId": "REPLACE_WITH_MSTEAMS_APP_ID",
+      "appPassword": "REPLACE_WITH_MSTEAMS_APP_PASSWORD",
+      "tenantId": "REPLACE_WITH_AZURE_TENANT_ID",
+      "webhook": { "port": 3978, "path": "/api/messages" },
+      "dmPolicy": "open",
+      "allowFrom": ["*"],
+      "groupPolicy": "open",
+      "requireMention": false
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "lan",
+    "controlUi": {
+      "allowedOrigins": ["*"],
+      "allowInsecureAuth": true
+    },
+    "auth": {
+      "mode": "token",
+      "token": "REPLACE_WITH_GATEWAY_TOKEN"
+    },
+    "tailscale": { "mode": "off" }
+  },
+  "plugins": {
+    "allow": ["msteams", "anthropic"],
+    "entries": {
+      "msteams": { "enabled": false },
+      "anthropic": { "enabled": true }
+    }
+  }
+}

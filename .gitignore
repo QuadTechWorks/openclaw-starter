@@ -1,0 +1,37 @@
+# Secrets — never commit these
+.env
+openclaw.json
+cert.pem
+key.pem
+
+# Runtime workspace directories
+workspace/memory/
+workspace/projects/
+workspace/reports/
+workspace/output/
+workspace/logs/
+workspace/.python-packages/
+
+# ngrok
+ngrok/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
