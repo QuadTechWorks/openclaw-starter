@@ -1,8 +1,18 @@
 # Secrets — never commit these
 .env
 openclaw.json
+openclaw.json.bak
+openclaw.json.last-good
 cert.pem
 key.pem
+
+# Runtime artifacts the gateway writes to OPENCLAW_CONFIG_DIR (repo root)
+canvas/
+identity/
+logs/
+tasks/
+tui/
+update-check.json
 
 # Runtime workspace directories
 workspace/memory/

@@ -187,8 +187,7 @@ AGENT_NAME_LOWER=$(echo "$AGENT_NAME" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
 cat > "$SCRIPT_DIR/openclaw.json" << EOF
 {
   "meta": {
-    "lastTouchedVersion": "2026.4.21",
-    "agentName": "${AGENT_NAME}"
+    "lastTouchedVersion": "2026.4.21"
   },
   "agents": {
     "defaults": {
@@ -254,7 +253,7 @@ cat > "$SCRIPT_DIR/openclaw.json" << EOF
   "gateway": {
     "port": 18789,
     "mode": "local",
-    "bind": "localhost",
+    "bind": "loopback",
     "controlUi": {
       "allowedOrigins": ["http://localhost:18789", "http://127.0.0.1:18789"],
       "allowInsecureAuth": true

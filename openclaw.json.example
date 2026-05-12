@@ -1,7 +1,6 @@
 {
   "meta": {
-    "lastTouchedVersion": "2026.4.21",
-    "agentName": "YOUR_AGENT_NAME"
+    "lastTouchedVersion": "2026.4.21"
   },
   "agents": {
     "defaults": {
@@ -10,7 +9,9 @@
       },
       "models": {
         "anthropic/claude-sonnet-4-6": {
-          "params": { "cacheRetention": "short" }
+          "params": {
+            "cacheRetention": "short"
+          }
         },
         "openai/text-embedding-3-small": {}
       },
@@ -41,15 +42,23 @@
       },
       "blockStreamingDefault": "on",
       "blockStreamingBreak": "text_end",
-      "heartbeat": { "every": "20m" },
-      "sandbox": { "browser": { "enabled": true } }
+      "heartbeat": {
+        "every": "20m"
+      },
+      "sandbox": {
+        "browser": {
+          "enabled": true
+        }
+      }
     }
   },
   "tools": {
     "profile": "full",
     "exec": {
       "security": "full",
-      "pathPrepend": ["/home/node/.openclaw/workspace/bin"]
+      "pathPrepend": [
+        "/home/node/.openclaw/workspace/bin"
+      ]
     }
   },
   "commands": {
@@ -67,9 +76,14 @@
       "appId": "REPLACE_WITH_MSTEAMS_APP_ID",
       "appPassword": "REPLACE_WITH_MSTEAMS_APP_PASSWORD",
       "tenantId": "REPLACE_WITH_AZURE_TENANT_ID",
-      "webhook": { "port": 3978, "path": "/api/messages" },
+      "webhook": {
+        "port": 3978,
+        "path": "/api/messages"
+      },
       "dmPolicy": "open",
-      "allowFrom": ["*"],
+      "allowFrom": [
+        "*"
+      ],
       "groupPolicy": "open",
       "requireMention": false
     },
@@ -84,35 +98,56 @@
       "enabled": false,
       "dmPolicy": "open",
       "groupPolicy": "open",
-      "allowFrom": ["*"]
+      "allowFrom": [
+        "*"
+      ]
     }
   },
   "gateway": {
     "port": 18789,
     "mode": "local",
-    "bind": "localhost",
+    "bind": "loopback",
     "controlUi": {
-      "allowedOrigins": ["http://localhost:18789", "http://127.0.0.1:18789"],
+      "allowedOrigins": [
+        "http://localhost:18789",
+        "http://127.0.0.1:18789"
+      ],
       "allowInsecureAuth": true
     },
     "auth": {
       "mode": "token",
       "token": "REPLACE_WITH_GATEWAY_TOKEN"
     },
-    "tailscale": { "mode": "off" }
+    "tailscale": {
+      "mode": "off"
+    }
   },
   "plugins": {
-    "allow": ["msteams", "whatsapp", "telegram", "device-pair", "anthropic"],
+    "allow": [
+      "msteams",
+      "whatsapp",
+      "telegram",
+      "device-pair",
+      "anthropic"
+    ],
     "entries": {
-      "msteams": { "enabled": false },
-      "whatsapp": { "enabled": false },
-      "telegram": { "enabled": false },
+      "msteams": {
+        "enabled": false
+      },
+      "whatsapp": {
+        "enabled": false
+      },
+      "telegram": {
+        "enabled": false
+      },
       "device-pair": {
         "config": {
           "publicUrl": "REPLACE_WITH_PUBLIC_WSS_URL"
         }
       },
-      "anthropic": { "enabled": true }
+      "anthropic": {
+        "enabled": true
+      }
     }
   }
 }
