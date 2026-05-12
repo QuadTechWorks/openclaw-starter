@@ -360,6 +360,41 @@ The `entrypoint.sh` detects the change via SHA-256 hash and reinstalls only what
 
 ---
 
+## Security — What Stays Local
+
+The following files are **gitignored** and never committed:
+
+| File | Why |
+|---|---|
+| `.env` | Contains your API keys, gateway token, ngrok authtoken |
+| `openclaw.json` | Contains your gateway token + Teams App Password |
+| `cert.pem`, `key.pem` | TLS certs if you add HTTPS |
+| `workspace/memory/` | Per-user memory files |
+| `workspace/projects/`, `output/`, `reports/`, `logs/` | Runtime output |
+| `workspace/.python-packages/` | Pip install cache |
+| `workspace/knowledge/db-connections.md` | Database creds if you add them |
+
+Only the `.env.example` and `openclaw.json.example` templates are committed — safe to share.
+
+**Important:**
+- Never commit `.env` or `openclaw.json` — they contain secrets.
+- The `GATEWAY_TOKEN` is your auth credential for the web UI. Treat it like a password.
+- If you accidentally commit a token, rotate it: regenerate with `openssl rand -hex 32` and update both `.env` and `openclaw.json`.
+
+### Accessing From Other Devices on Your LAN
+
+By default `openclaw.json` sets `gateway.bind: "lan"` — meaning the gateway binds to all network interfaces, not just localhost. Other devices on your network can reach it at:
+
+```
+http://<your-machine-ip>:18789
+```
+
+Find your IP with `ifconfig` (Mac/Linux) or `ipconfig` (Windows). They'll need the `GATEWAY_TOKEN` to authenticate.
+
+To restrict to localhost only, set `gateway.bind: "localhost"` in `openclaw.json` and restart the gateway.
+
+---
+
 ## Commands Reference
 
 ```bash
