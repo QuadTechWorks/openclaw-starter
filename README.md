@@ -122,10 +122,25 @@ openclaw-ngrok          (Teams only) ngrok tunnel container.
 ## Prerequisites
 
 - **Docker Desktop** (Mac / Windows) or **Docker Engine + Compose plugin** (Linux)
+- **openssl** (used by `setup.sh` to generate the gateway token — preinstalled on macOS and most Linux distros)
+- **Python 3** (used by `setup.sh` to patch `workspace/IDENTITY.md` — preinstalled on macOS)
 - An **Anthropic API key** — [console.anthropic.com](https://console.anthropic.com)
 - Optional: OpenAI key, Tavily key, Teams bot credentials, ngrok account
 
-> **Linux only — install Docker Engine:**
+> **macOS — install Docker Desktop:**
+> 1. Download from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) (pick the Apple Silicon or Intel build for your Mac).
+> 2. Open the `.dmg`, drag **Docker.app** into `/Applications`, then launch it once so the daemon starts.
+> 3. Verify in a terminal:
+>    ```bash
+>    docker --version           # Docker version 26.x or newer
+>    docker compose version     # Docker Compose v2.x
+>    ```
+> If you prefer a lighter alternative, [OrbStack](https://orbstack.dev/) is a drop-in replacement that works with this template.
+
+> **Windows — install Docker Desktop:**
+> Download from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) and follow the WSL 2 backend prompts during install. Run `setup.sh` inside WSL (Ubuntu).
+
+> **Linux — install Docker Engine:**
 > ```bash
 > sudo apt-get update && sudo apt-get install -y ca-certificates curl gnupg
 > sudo install -m 0755 -d /etc/apt/keyrings
@@ -612,13 +627,49 @@ workspace/skills/my-skill/SKILL.md
 
 ### Python Packages
 
-Edit `requirements.txt` then restart the gateway:
+Python packages from `requirements.txt` are installed **automatically** the first time the gateway starts — you don't run `pip install` yourself.
 
+The flow:
+1. Container starts → `entrypoint.sh` is invoked
+2. It SHA-256 hashes `requirements.txt` and compares to the cached hash in `workspace/.python-packages/.requirements.hash`
+3. If different (or first run): runs `pip install --user -r /requirements.txt`
+4. Saves the new hash, then starts the gateway
+
+To add a package: edit `requirements.txt` and restart the gateway:
 ```bash
 docker compose restart openclaw-gateway
 ```
+The hash changes, so packages reinstall. Subsequent restarts skip the install (~2 seconds vs 2–5 minutes).
 
-The `entrypoint.sh` detects the change via SHA-256 hash and reinstalls only what changed.
+To force a clean reinstall:
+```bash
+rm -rf workspace/.python-packages && docker compose restart openclaw-gateway
+```
+
+### What Triggers Live Reload
+
+The watcher service watches **exactly 6 files** at the workspace root for instant agent reloads (no container restart):
+
+```
+workspace/AGENTS.md
+workspace/SOUL.md
+workspace/IDENTITY.md
+workspace/TOOLS.md
+workspace/MEMORY.md
+workspace/HEARTBEAT.md
+```
+
+Edit any of these → save → the agent picks up the change on the next message. No restart, no container action needed.
+
+**Changes that require a gateway restart** (`docker compose restart openclaw-gateway`):
+- `workspace/skills/**` — adding, removing, or editing a skill's `SKILL.md`
+- `workspace/knowledge/**` — adding or editing knowledge `.md` files
+- `workspace/PERMISSIONS.md`, `USER.md`, `WORKSPACE.md`, `BOOTSTRAP.md` — not watched
+- `openclaw.json` — agent config
+- `.env` — environment variables
+- `requirements.txt` — Python packages (auto-reinstall on restart)
+
+This is a limit of the OpenClaw image's watcher protocol, not the template.
 
 ---
 
@@ -645,15 +696,33 @@ Only the `.env.example` and `openclaw.json.example` templates are committed — 
 
 ### Accessing From Other Devices on Your LAN
 
-By default `openclaw.json` sets `gateway.bind: "lan"` — meaning the gateway binds to all network interfaces, not just localhost. Other devices on your network can reach it at:
+By default `openclaw.json` sets `gateway.bind: "localhost"` — only the host machine can reach the gateway. This is the **safe default**.
 
+To expose the gateway to other devices on your LAN (so you can chat from your phone or another laptop), edit `openclaw.json`:
+
+```json
+"gateway": {
+  "bind": "lan",
+  "controlUi": {
+    "allowedOrigins": ["*"],
+    "allowInsecureAuth": true
+  }
+}
+```
+
+Then restart the gateway:
+```bash
+docker compose restart openclaw-gateway
+```
+
+Find your machine's IP with `ifconfig` (Mac/Linux) or `ipconfig` (Windows). Other devices reach the agent at:
 ```
 http://<your-machine-ip>:18789
 ```
 
-Find your IP with `ifconfig` (Mac/Linux) or `ipconfig` (Windows). They'll need the `GATEWAY_TOKEN` to authenticate.
+They'll need the `GATEWAY_TOKEN` from your `.env` to authenticate.
 
-To restrict to localhost only, set `gateway.bind: "localhost"` in `openclaw.json` and restart the gateway.
+> **Security note:** `allowInsecureAuth: true` allows token auth over plain HTTP — fine for localhost but risky on a shared LAN. For production, put the gateway behind a reverse proxy (Caddy, Traefik, nginx) with HTTPS and set `allowInsecureAuth: false`.
 
 ---
 

@@ -12,9 +12,6 @@ fastembed
 sentence-transformers
 tavily-python
 
-# ── Vector DB ─────────────────────────────────────────────────────────────────
-qdrant-client
-
 # ── Data Science ──────────────────────────────────────────────────────────────
 pandas
 numpy

@@ -47,6 +47,34 @@ const WATCHED_FILES = [
   'HEARTBEAT.md',
 ].map(f => path.join(WORKSPACE_DIR, f));
 
+// Additional directories watched recursively for *.md changes.
+// Lets users edit skill SKILL.md files or drop new knowledge docs and
+// trigger a workspace reload without restarting containers.
+const WATCHED_DIRS = [
+  path.join(WORKSPACE_DIR, 'skills'),
+  path.join(WORKSPACE_DIR, 'knowledge'),
+];
+
+// Glob patterns passed to chokidar — picks up any .md file under the watched dirs.
+const WATCHED_GLOBS = WATCHED_DIRS.map(d => path.join(d, '**/*.md'));
+
+// Walk a directory recursively and return all .md file paths (best-effort).
+function listMdFiles(dir) {
+  const out = [];
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
+  catch (_) { return out; }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      out.push(...listMdFiles(full));
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
 // ─── State ───────────────────────────────────────────────────────────────────
 
 /**
@@ -97,11 +125,24 @@ let currentWorkspaceVersion = computeWorkspaceVersion();
 
 function computeWorkspaceVersion() {
   const combined = crypto.createHash('sha256');
+  // Hash the top-level required files first (stable order).
   for (const filePath of WATCHED_FILES) {
     try {
       combined.update(fs.readFileSync(filePath));
     } catch (_) {
       // File missing or unreadable — skip
+    }
+  }
+  // Then hash every .md file under skills/ and knowledge/ in sorted order.
+  const dirFiles = [];
+  for (const dir of WATCHED_DIRS) dirFiles.push(...listMdFiles(dir));
+  dirFiles.sort();
+  for (const filePath of dirFiles) {
+    try {
+      combined.update(Buffer.from(filePath));
+      combined.update(fs.readFileSync(filePath));
+    } catch (_) {
+      // skip
     }
   }
   return combined.digest('hex');
@@ -345,9 +386,10 @@ function startFileWatcher() {
   }
 
   // Filter to only files that exist right now (missing files are watched anyway)
-  log(`[watcher] Starting chokidar on: ${WATCHED_FILES.join(', ')}`);
+  const watchTargets = [...WATCHED_FILES, ...WATCHED_GLOBS];
+  log(`[watcher] Starting chokidar on: ${watchTargets.join(', ')}`);
 
-  const watcher = chokidar.watch(WATCHED_FILES, {
+  const watcher = chokidar.watch(watchTargets, {
     ignoreInitial: true,
     awaitWriteFinish: {
       stabilityThreshold: 200,
@@ -375,7 +417,7 @@ function startFileWatcher() {
   });
 
   watcher.on('error', (err) => log(`[watcher] Error: ${err}`));
-  watcher.on('ready', () => log(`[watcher] Ready — watching ${WATCHED_FILES.length} files`));
+  watcher.on('ready', () => log(`[watcher] Ready — watching ${WATCHED_FILES.length} files + ${WATCHED_DIRS.length} dirs (skills/, knowledge/)`));
 }
 
 // ─── Express HTTP Server ──────────────────────────────────────────────────────

@@ -40,6 +40,30 @@ read -r AGENT_NAME
 [[ -z "$AGENT_NAME" ]] && fail "Agent name cannot be empty."
 ok "Agent name: $AGENT_NAME"
 
+echo ""
+ask "Agent role? (e.g. \"Personal AI assistant\", \"Software engineering assistant\") [Personal AI assistant]: "
+read -r AGENT_ROLE
+AGENT_ROLE="${AGENT_ROLE:-Personal AI assistant}"
+ok "Agent role: $AGENT_ROLE"
+
+echo ""
+ask "Agent vibe? (e.g. \"Sharp, concise, execution-focused\") [Sharp, concise, execution-focused]: "
+read -r AGENT_VIBE
+AGENT_VIBE="${AGENT_VIBE:-Sharp, concise, execution-focused}"
+ok "Agent vibe: $AGENT_VIBE"
+
+echo ""
+ask "Agent emoji? [🤖]: "
+read -r AGENT_EMOJI
+AGENT_EMOJI="${AGENT_EMOJI:-🤖}"
+ok "Agent emoji: $AGENT_EMOJI"
+
+echo ""
+ask "One-line description for introductions? (used in \"Hi, I am NAME — DESCRIPTION.\") [your $AGENT_ROLE]: "
+read -r AGENT_DESCRIPTION
+AGENT_DESCRIPTION="${AGENT_DESCRIPTION:-your $AGENT_ROLE}"
+ok "Agent description: $AGENT_DESCRIPTION"
+
 # =============================================================================
 # 2 — LLM API Keys
 # =============================================================================
@@ -169,10 +193,10 @@ cat > "$SCRIPT_DIR/openclaw.json" << EOF
   "agents": {
     "defaults": {
       "model": {
-        "primary": "anthropic/claude-sonnet-4-5"
+        "primary": "anthropic/claude-sonnet-4-6"
       },
       "models": {
-        "anthropic/claude-sonnet-4-5": {
+        "anthropic/claude-sonnet-4-6": {
           "params": { "cacheRetention": "short" }
         }
       },
@@ -230,9 +254,9 @@ cat > "$SCRIPT_DIR/openclaw.json" << EOF
   "gateway": {
     "port": 18789,
     "mode": "local",
-    "bind": "lan",
+    "bind": "localhost",
     "controlUi": {
-      "allowedOrigins": ["*"],
+      "allowedOrigins": ["http://localhost:18789", "http://127.0.0.1:18789"],
       "allowInsecureAuth": true
     },
     "auth": {
@@ -260,8 +284,30 @@ section "Patching workspace/IDENTITY.md"
 
 IDENTITY_FILE="$SCRIPT_DIR/workspace/IDENTITY.md"
 if [[ -f "$IDENTITY_FILE" ]]; then
-  sed -i.bak "s/YOUR_AGENT_NAME/${AGENT_NAME}/g" "$IDENTITY_FILE" && rm -f "${IDENTITY_FILE}.bak"
-  ok "IDENTITY.md patched with agent name: $AGENT_NAME"
+  python3 - "$IDENTITY_FILE" "$AGENT_NAME" "$AGENT_ROLE" "$AGENT_VIBE" "$AGENT_EMOJI" "$AGENT_DESCRIPTION" <<'PYEOF'
+import sys, re
+path, name, role, vibe, emoji, desc = sys.argv[1:7]
+with open(path, "r", encoding="utf-8") as f:
+    text = f.read()
+
+# Replace bare placeholders first
+text = text.replace("YOUR_AGENT_NAME", name)
+text = text.replace("YOUR_SHORT_DESCRIPTION", desc)
+
+# Replace `PLACEHOLDER (e.g. "...")` patterns — drop the example
+text = re.sub(r'YOUR_AGENT_ROLE\s*\(e\.g\.\s*"[^"]*"(?:,\s*"[^"]*")*\)', role, text)
+text = re.sub(r'YOUR_AGENT_VIBE\s*\(e\.g\.\s*"[^"]*"\)', vibe, text)
+text = re.sub(r'YOUR_EMOJI\s*\(e\.g\.\s*[^)]*\)', emoji, text)
+
+# Fallback for any leftover bare tokens
+text = text.replace("YOUR_AGENT_ROLE", role)
+text = text.replace("YOUR_AGENT_VIBE", vibe)
+text = text.replace("YOUR_EMOJI", emoji)
+
+with open(path, "w", encoding="utf-8") as f:
+    f.write(text)
+PYEOF
+  ok "IDENTITY.md patched with name, role, vibe, emoji, description."
 fi
 
 # =============================================================================
