@@ -1,0 +1,23 @@
+# =============================================================================
+# docker-compose.telegram.yml — Telegram overlay
+#
+# Telegram uses long polling — no public URL or tunnel required.
+# This overlay just injects the bot token into the gateway container.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.telegram.yml up -d
+#
+# Prerequisites:
+#   - Set TELEGRAM_BOT_TOKEN in .env (get from @BotFather)
+#   - In openclaw.json:
+#       channels.telegram.enabled = true
+#       plugins.entries.telegram.enabled = true
+#   - Pair the bot once:
+#       docker compose exec openclaw-cli openclaw channels add \
+#         --channel telegram --token "$TELEGRAM_BOT_TOKEN"
+# =============================================================================
+
+services:
+  openclaw-gateway:
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}

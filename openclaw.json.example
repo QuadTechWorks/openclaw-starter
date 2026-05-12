@@ -72,6 +72,19 @@
       "allowFrom": ["*"],
       "groupPolicy": "open",
       "requireMention": false
+    },
+    "whatsapp": {
+      "enabled": false,
+      "dmPolicy": "pairing",
+      "groupPolicy": "allowlist",
+      "debounceMs": 0,
+      "mediaMaxMb": 50
+    },
+    "telegram": {
+      "enabled": false,
+      "dmPolicy": "open",
+      "groupPolicy": "open",
+      "allowFrom": ["*"]
     }
   },
   "gateway": {
@@ -89,9 +102,16 @@
     "tailscale": { "mode": "off" }
   },
   "plugins": {
-    "allow": ["msteams", "anthropic"],
+    "allow": ["msteams", "whatsapp", "telegram", "device-pair", "anthropic"],
     "entries": {
       "msteams": { "enabled": false },
+      "whatsapp": { "enabled": false },
+      "telegram": { "enabled": false },
+      "device-pair": {
+        "config": {
+          "publicUrl": "REPLACE_WITH_PUBLIC_WSS_URL"
+        }
+      },
       "anthropic": { "enabled": true }
     }
   }

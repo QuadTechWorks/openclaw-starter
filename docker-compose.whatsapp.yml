@@ -1,0 +1,36 @@
+# =============================================================================
+# docker-compose.whatsapp.yml — WhatsApp pairing overlay
+#
+# Adds a public ngrok tunnel (WSS) that the device-pair plugin uses to
+# complete the QR-pairing handshake with WhatsApp Web on your phone.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.whatsapp.yml up -d
+#
+# Prerequisites:
+#   - Set NGROK_AUTHTOKEN and NGROK_URL in .env
+#   - In openclaw.json:
+#       channels.whatsapp.enabled = true
+#       plugins.entries.whatsapp.enabled = true
+#       plugins.entries.device-pair.config.publicUrl = "wss://<NGROK_URL host>"
+#
+# Note: WhatsApp's ngrok forwards to port 18789 (gateway WebSocket).
+#       Teams' ngrok forwards to port 3978 (Teams webhook).
+#       If you need BOTH at once, you need a paid ngrok plan with 2 domains.
+# =============================================================================
+
+services:
+  ngrok-whatsapp:
+    image: ngrok/ngrok:latest
+    container_name: openclaw-ngrok-whatsapp
+    networks:
+      - openclaw-network
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    command:
+      - http
+      - --url=${NGROK_URL:-}
+      - openclaw-gateway:18789
+    restart: unless-stopped
+    depends_on:
+      - openclaw-gateway

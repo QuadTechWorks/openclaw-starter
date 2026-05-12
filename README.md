@@ -12,7 +12,9 @@ Your agent runs as a persistent gateway — accessible via a **web UI**, **termi
 |---|---|
 | `setup.sh` | Interactive wizard — asks for your credentials, generates `.env` + `openclaw.json`, optionally starts the stack |
 | `docker-compose.yml` | 4-service stack (gateway, watcher, watcher-client, cli) |
-| `docker-compose.teams.yml` | Optional overlay that adds an ngrok tunnel for Teams |
+| `docker-compose.teams.yml` | Optional overlay — ngrok tunnel for Microsoft Teams |
+| `docker-compose.whatsapp.yml` | Optional overlay — ngrok WSS tunnel for WhatsApp QR pairing |
+| `docker-compose.telegram.yml` | Optional overlay — injects Telegram bot token (no tunnel needed) |
 | `entrypoint.sh` | Smart Python dep installer — hash-based cache, skips reinstall if unchanged |
 | `requirements.txt` | Python packages installed into the gateway container on first start |
 | `openclaw.json.example` | Full agent config reference with all fields documented |
@@ -28,6 +30,18 @@ Your agent runs as a persistent gateway — accessible via a **web UI**, **termi
 | `workspace/skills/` | 8 built-in skill plugins (see Skills section below) |
 | `workspace/knowledge/` | Drop your `.md` reference files here |
 | `workspace/system/watcher_client.py` | Watcher infrastructure — do not edit |
+
+### Supported Channels
+
+| Channel | Setup | Public URL needed | Where to configure |
+|---|---|---|---|
+| **Web UI** | Always on | No | `gateway.bind` in `openclaw.json` |
+| **Terminal TUI** | Always on (`docker attach openclaw-cli`) | No | — |
+| **MS Teams** | Azure Bot + ngrok HTTPS | Yes — ngrok HTTPS → port 3978 | `channels.msteams` |
+| **WhatsApp** | QR pairing + ngrok WSS | Yes — ngrok WSS → port 18789 | `channels.whatsapp` + `device-pair` plugin |
+| **Telegram** | BotFather token | No (outbound long polling) | `channels.telegram` |
+
+> **ngrok note:** Free ngrok gives 1 static domain. Teams uses port 3978; WhatsApp uses port 18789. If you want both at once, you need a paid ngrok plan with two domains, or pick one. Telegram needs no ngrok.
 
 ### Built-in Skills
 
@@ -318,6 +332,254 @@ Azure Portal → your bot → **Test in Web Chat** → send a message. If you ge
 
 ---
 
+## WhatsApp Integration — Step by Step
+
+WhatsApp connects via the **WhatsApp Web protocol** — no business API or Facebook account needed. You pair your personal WhatsApp account by scanning a QR code, just like you would with WhatsApp on a desktop.
+
+> View interactive flow diagram: [WhatsApp Pairing & Message Flow on FigJam](https://www.figma.com/board/cFEGGsbhu23X0TOdag8dyj)
+
+```mermaid
+sequenceDiagram
+  participant Phone as WhatsApp on Phone
+  participant WACloud as WhatsApp Cloud
+  participant NC as ngrok Cloud
+  participant NG as ngrok-whatsapp Container
+  participant GW as gateway :18789
+  participant CLI as openclaw-cli
+
+  Note over CLI,GW: One-time QR pairing
+  CLI->>GW: openclaw channels add whatsapp
+  GW->>CLI: shows QR code in terminal
+  Phone->>Phone: Settings - Linked Devices
+  Phone->>WACloud: scans QR code
+  WACloud->>NC: wss connect to public URL
+  NC->>NG: tunnels to local ngrok container
+  NG->>GW: forwards to WebSocket :18789
+  GW->>Phone: pairing complete
+
+  Note over Phone,GW: Live messages
+  Phone->>WACloud: user sends message
+  WACloud->>NC: pushes via wss
+  NC->>NG: tunnel
+  NG->>GW: delivers to gateway
+  GW->>NG: reply
+  NG->>NC: tunnel back
+  NC->>WACloud: reply via wss
+  WACloud->>Phone: appears in chat
+```
+
+### What You Need
+
+| Credential | Where to get it |
+|---|---|
+| `NGROK_AUTHTOKEN` | [dashboard.ngrok.com](https://dashboard.ngrok.com) → Your Authtoken |
+| `NGROK_URL` | [dashboard.ngrok.com](https://dashboard.ngrok.com) → Domains → Create static domain |
+| A spare WhatsApp account | Recommended — pairing this also signs your phone out of WhatsApp Web sessions |
+
+> **Important:** WhatsApp Web pairing **logs out your other WhatsApp Web sessions** (browser, desktop). Use a phone number you don't use for everyday WhatsApp Web access, or accept the trade-off.
+
+### Setup Steps
+
+**1. Add ngrok credentials to `.env`**
+
+```bash
+NGROK_AUTHTOKEN=your-ngrok-authtoken
+NGROK_URL=https://abc-def-123.ngrok-free.app
+```
+
+**2. Enable WhatsApp in `openclaw.json`**
+
+```json
+"channels": {
+  "whatsapp": {
+    "enabled": true,
+    "dmPolicy": "pairing",
+    "groupPolicy": "allowlist"
+  }
+},
+"plugins": {
+  "entries": {
+    "whatsapp": { "enabled": true },
+    "device-pair": {
+      "config": { "publicUrl": "wss://abc-def-123.ngrok-free.app" }
+    }
+  }
+}
+```
+
+> Note the `wss://` prefix — same domain as `NGROK_URL` but with the WebSocket scheme.
+
+**3. Start with the WhatsApp overlay**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.whatsapp.yml up -d
+```
+
+This adds an `openclaw-ngrok-whatsapp` container that tunnels `wss://abc-def-123.ngrok-free.app` → `openclaw-gateway:18789`.
+
+**4. Pair your phone**
+
+Run the pairing command:
+```bash
+docker compose exec openclaw-cli openclaw channels add whatsapp
+```
+
+A QR code appears in your terminal.
+
+On your phone:
+- Open **WhatsApp** → tap menu (⋮) → **Linked devices** → **Link a device**
+- Authenticate with face/fingerprint if prompted
+- Scan the QR code from your terminal
+
+Within a few seconds, the terminal will print **"pairing complete"** and your phone will show the device in Linked Devices as "OpenClaw".
+
+**5. Test it**
+
+Send a WhatsApp message from another phone to your paired number. The agent should reply within seconds.
+
+To send messages from the agent side:
+```bash
+docker compose exec openclaw-cli openclaw message send \
+  --channel whatsapp \
+  --target "+919876543210" \
+  --message "Hello from your agent"
+```
+
+---
+
+## Telegram Integration — Step by Step
+
+Telegram is the **simplest channel to set up** — no tunnel, no Azure, no QR codes. The gateway connects out to Telegram's servers using long polling.
+
+> View interactive flow diagram: [Telegram Message Flow on FigJam](https://www.figma.com/board/6meA1CoGnLc4kXjKG4oYK1)
+
+```mermaid
+sequenceDiagram
+  participant User as Telegram User
+  participant TG as Telegram Cloud
+  participant GW as openclaw-gateway
+  participant AI as Anthropic API
+
+  Note over User,GW: One-time setup
+  User->>TG: chat with BotFather
+  TG->>User: bot token
+  User->>GW: openclaw channels add telegram --token
+
+  Note over GW,TG: Outbound long polling
+  GW->>TG: getUpdates poll request
+  TG-->>GW: holds connection open
+
+  Note over User,AI: Live messages
+  User->>TG: sends message to bot
+  TG->>GW: returns update on poll
+  GW->>AI: Claude API call
+  AI->>GW: response
+  GW->>TG: sendMessage
+  TG->>User: bot reply appears
+```
+
+### What You Need
+
+| Credential | Where to get it |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | Telegram — chat with [@BotFather](https://t.me/BotFather) |
+
+### Setup Steps
+
+**1. Create a bot via BotFather**
+
+- Open Telegram, search for **@BotFather**, start a chat
+- Send `/newbot`
+- Choose a display name (e.g. "My OpenClaw Agent")
+- Choose a username ending in `bot` (e.g. `myopenclaw_bot`)
+- BotFather replies with your bot token (format: `123456789:ABCdef...`)
+
+**2. Add the token to `.env`**
+
+```bash
+TELEGRAM_BOT_TOKEN=123456789:ABCdef...
+```
+
+**3. Enable Telegram in `openclaw.json`**
+
+```json
+"channels": {
+  "telegram": {
+    "enabled": true,
+    "dmPolicy": "open",
+    "groupPolicy": "open",
+    "allowFrom": ["*"]
+  }
+},
+"plugins": {
+  "entries": {
+    "telegram": { "enabled": true }
+  }
+}
+```
+
+**4. Start with the Telegram overlay**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.telegram.yml up -d
+```
+
+**5. Pair the bot**
+
+```bash
+docker compose exec openclaw-cli openclaw channels add \
+  --channel telegram \
+  --token "$TELEGRAM_BOT_TOKEN"
+```
+
+The gateway starts polling Telegram for updates immediately.
+
+**6. Test it**
+
+Open Telegram → search for your bot's username → send `/start` → the agent replies.
+
+To send messages programmatically:
+```bash
+docker compose exec openclaw-cli openclaw message send \
+  --channel telegram \
+  --target "@username_or_chat_id" \
+  --message "Hello from your agent"
+```
+
+Telegram-specific perks the agent can use:
+- Inline keyboard buttons: `--buttons '[[{"text":"Yes","callback":"y"},{"text":"No","callback":"n"}]]'`
+- Silent send: `--silent`
+- Forum threads: `--thread-id <id>`
+- Polls: `openclaw message poll --channel telegram ...`
+
+---
+
+## Running Multiple Channels Together
+
+Stack the compose overlays as needed:
+
+```bash
+# Teams only
+docker compose -f docker-compose.yml -f docker-compose.teams.yml up -d
+
+# Telegram only
+docker compose -f docker-compose.yml -f docker-compose.telegram.yml up -d
+
+# Telegram + Teams (Telegram needs no tunnel; Teams uses port 3978)
+docker compose -f docker-compose.yml \
+               -f docker-compose.teams.yml \
+               -f docker-compose.telegram.yml up -d
+
+# Telegram + WhatsApp (WhatsApp uses port 18789)
+docker compose -f docker-compose.yml \
+               -f docker-compose.whatsapp.yml \
+               -f docker-compose.telegram.yml up -d
+```
+
+> Teams + WhatsApp together requires **two ngrok domains** (one for port 3978, one for port 18789) — only possible with a paid ngrok plan.
+
+---
+
 ## Customising Your Agent
 
 ### Agent Personality
@@ -482,3 +744,7 @@ openclaw-starter/
 | Teams 401 Unauthorized | Wrong App Password | Azure Portal → Certificates & secrets → create new secret → copy **Value** |
 | Workspace reload not working | watcher-client disconnected | `docker compose restart openclaw-watcher-client` |
 | Slow first startup | Downloading image + installing pip packages | Normal. Watch progress: `docker compose logs -f openclaw-gateway` |
+| WhatsApp QR code expires | Pairing window is short (~30s) | Re-run `openclaw channels add whatsapp` and scan quickly |
+| WhatsApp keeps disconnecting | Phone went offline / WA Web logged out | Phone must stay online with WhatsApp open at least once a week |
+| Telegram bot doesn't reply | Bot not started by user | User must send `/start` to the bot first |
+| Telegram getUpdates 409 conflict | Token used by another instance | Stop other instances or revoke + regenerate token via BotFather |
